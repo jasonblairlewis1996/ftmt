@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Follow the Monster Test (FTMT)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f4f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+#app { background: white; border-radius: 16px; padding: 2.5rem 2rem; max-width: 660px; width: 100%; box-shadow: 0 2px 16px rgba(0,0,0,0.08); }
+.screen { display: none; flex-direction: column; align-items: center; gap: 1.5rem; }
+.screen.active { display: flex; }
+h1 { font-size: 22px; font-weight: 500; color: #1a1a1a; text-align: center; }
+h2 { font-size: 18px; font-weight: 500; color: #1a1a1a; text-align: center; }
+p { font-size: 14px; color: #666; text-align: center; line-height: 1.6; }
+.field { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 300px; }
+.field label { font-size: 13px; color: #666; }
+input[type="text"], input[type="number"] {
+  width: 100%; padding: 9px 12px; font-size: 14px;
+  border: 0.5px solid #ccc; border-radius: 8px; outline: none;
+  font-family: inherit;
+}
+input:focus { border-color: #7F77DD; box-shadow: 0 0 0 3px rgba(127,119,221,0.15); }
+.btn {
+  padding: 10px 28px; font-size: 14px; cursor: pointer;
+  border-radius: 8px; border: 0.5px solid #ccc;
+  background: white; color: #1a1a1a;
+  font-family: inherit; transition: background 0.15s;
+}
+.btn:hover { background: #f5f4f0; }
+.btn.primary { background: #3C3489; color: white; border-color: #3C3489; }
+.btn.primary:hover { background: #26215C; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.top-bar { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.trial-info { font-size: 13px; color: #888; }
+.progress-dots { display: flex; gap: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #eee; border: 1.5px solid #ccc; }
+.dot.done { background: #3C3489; border-color: #3C3489; }
+.dot.active { background: #AFA9EC; border-color: #7F77DD; }
+.phase-label { font-size: 15px; font-weight: 500; color: #1a1a1a; min-height: 24px; text-align: center; }
+.speech-area { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+.speech-bubble {
+  background: white; border: 1.5px solid #ccc; border-radius: 12px;
+  padding: 8px 18px; font-size: 13px; color: #333; position: relative;
+}
+.speech-bubble::after {
+  content: ''; position: absolute; bottom: -10px; left: 50%;
+  transform: translateX(-50%); border: 5px solid transparent;
+  border-top-color: #ccc;
+}
+.monster-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 0.5rem 0; width: 100%; }
+.monster-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: default; position: relative; padding: 12px;
+  border-radius: 20px; transition: background 0.1s; user-select: none;
+}
+.monster-wrap .flash-bg {
+  position: absolute; inset: 0; border-radius: 20px;
+  opacity: 0; transition: opacity 0.05s; pointer-events: none;
+}
+.monster-wrap svg { transition: transform 0.05s; display: block; }
+.monster-wrap.clickable { cursor: pointer; }
+.monster-wrap.clickable:hover svg { transform: scale(1.05); }
+
+@keyframes activate {
+  0%   { transform: scale(1)    translateY(0px); }
+  20%  { transform: scale(1.35) translateY(-18px); }
+  55%  { transform: scale(1.35) translateY(-18px); }
+  80%  { transform: scale(1.05) translateY(-4px); }
+  100% { transform: scale(1)    translateY(0px); }
+}
+@keyframes flash-in {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  60%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+.activating svg { animation: activate 0.75s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+.activating .flash-bg { animation: flash-in 0.75s ease forwards; }
+
+@keyframes wiggle { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(-10deg)} 75%{transform:rotate(10deg)} }
+.correct-flash svg { animation: wiggle 0.35s ease-in-out; }
+.wrong-flash { opacity: 0.35; transition: opacity 0.2s; }
+
+.results-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; width: 100%; }
+.metric { background: #f5f4f0; border-radius: 8px; padding: 1rem; text-align: center; }
+.metric-val { font-size: 26px; font-weight: 500; color: #1a1a1a; }
+.metric-label { font-size: 12px; color: #888; margin-top: 4px; }
+.trial-breakdown { width: 100%; font-size: 13px; color: #888; line-height: 2; text-align: center; }
+.version { font-size: 11px; color: #bbb; margin-top: 0.5rem; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ENTRY SCREEN -->
+  <div class="screen active" id="screen-entry">
+    <h1>Follow the Monster Test</h1>
+    <p>A sequential working memory task for children ages 6–18.<br/>Version 1.0</p>
+    <div class="field"><label>Participant ID</label><input type="text" id="pid" placeholder="e.g. P001"/></div>
+    <div class="field"><label>Age</label><input type="number" id="age" min="6" max="18" placeholder="6–18"/></div>
+    <button class="btn primary" onclick="startPractice()">Begin practice round</button>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div class="screen" id="screen-game">
+    <div class="top-bar">
+      <span class="trial-info" id="trial-label">Practice</span>
+      <div class="progress-dots">
+        <div class="dot" id="dot-1"></div>
+        <div class="dot" id="dot-2"></div>
+        <div class="dot" id="dot-3"></div>
+      </div>
+      <span class="trial-info" id="span-label">Span: 0</span>
+    </div>
+    <div class="phase-label" id="phase-label">Watch carefully!</div>
+    <div class="speech-area" id="speech-area"></div>
+
+    <div class="monster-grid">
+
+      <!-- BLOB - round, purple/blue, friendly -->
+      <div class="monster-wrap" id="m0" onclick="handleClick(0)">
+        <div class="flash-bg" style="background:#EEEDFE;"></div>
+        <svg width="110" height="130" viewBox="0 0 110 130">
+          <ellipse cx="55" cy="78" rx="38" ry="34" fill="#AFA9EC"/>
+          <ellipse cx="55" cy="62" rx="30" ry="32" fill="#CECBF6"/>
+          <circle cx="43" cy="58" r="7" fill="white"/><circle cx="67" cy="58" r="7" fill="white"/>
+          <circle cx="44" cy="58" r="3.5" fill="#3C3489"/><circle cx="68" cy="58" r="3.5" fill="#3C3489"/>
+          <path d="M44 70 Q55 78 66 70" stroke="#3C3489" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <ellipse cx="38" cy="56" rx="5" ry="3" fill="#D4537E" opacity="0.4"/>
+          <ellipse cx="72" cy="56" rx="5" ry="3" fill="#D4537E" opacity="0.4"/>
+          <path d="M26 80 Q16 88 20 98" stroke="#AFA9EC" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path d="M84 80 Q94 68 90 56" stroke="#AFA9EC" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <circle cx="90" cy="54" r="6" fill="#CECBF6"/>
+          <ellipse cx="44" cy="109" rx="9" ry="6" fill="#AFA9EC"/>
+          <ellipse cx="66" cy="109" rx="9" ry="6" fill="#AFA9EC"/>
+        </svg>
+        <span style="font-size:12px;color:#888;">Blob</span>
+      </div>
+
+      <!-- SPIKY - angular, amber, energetic -->
+      <div class="monster-wrap" id="m1" onclick="handleClick(1)">
+        <div class="flash-bg" style="background:#FAEEDA;"></div>
+        <svg width="110" height="130" viewBox="0 0 110 130">
+          <ellipse cx="55" cy="80" rx="32" ry="28" fill="#EF9F27"/>
+          <ellipse cx="55" cy="65" rx="26" ry="28" fill="#FAC775"/>
+          <polygon points="55,12 48,32 55,26 62,32" fill="#BA7517"/>
+          <polygon points="38,20 36,40 44,32 46,44" fill="#BA7517"/>
+          <polygon points="72,20 74,40 66,32 64,44" fill="#BA7517"/>
+          <circle cx="45" cy="62" r="6.5" fill="white"/><circle cx="65" cy="62" r="6.5" fill="white"/>
+          <circle cx="45" cy="62" r="3" fill="#412402"/><circle cx="65" cy="62" r="3" fill="#412402"/>
+          <path d="M45 74 Q55 80 65 74" stroke="#633806" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M24 82 Q14 90 18 100" stroke="#EF9F27" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <path d="M86 82 Q96 70 92 58" stroke="#EF9F27" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <circle cx="92" cy="56" r="6" fill="#FAC775"/>
+          <ellipse cx="44" cy="107" rx="9" ry="6" fill="#EF9F27"/>
+          <ellipse cx="66" cy="107" rx="9" ry="6" fill="#EF9F27"/>
+        </svg>
+        <span style="font-size:12px;color:#888;">Spiky</span>
+      </div>
+
+      <!-- TALL - elongated, teal, goofy -->
+      <div class="monster-wrap" id="m2" onclick="handleClick(2)">
+        <div class="flash-bg" style="background:#E1F5EE;"></div>
+        <svg width="110" height="130" viewBox="0 0 110 130">
+          <ellipse cx="55" cy="90" rx="26" ry="22" fill="#1D9E75"/>
+          <ellipse cx="55" cy="60" rx="22" ry="38" fill="#5DCAA5"/>
+          <circle cx="46" cy="52" r="6" fill="white"/><circle cx="64" cy="52" r="6" fill="white"/>
+          <circle cx="46" cy="52" r="3" fill="#085041"/><circle cx="64" cy="52" r="3" fill="#085041"/>
+          <path d="M44 66 Q55 76 66 66" stroke="#085041" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+          <ellipse cx="55" cy="70" rx="7" ry="4" fill="#085041" opacity="0.2"/>
+          <path d="M22 82 Q10 96 14 112" stroke="#5DCAA5" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <path d="M88 82 Q100 66 96 50" stroke="#5DCAA5" stroke-width="7" fill="none" stroke-linecap="round"/>
+          <circle cx="96" cy="48" r="6" fill="#9FE1CB"/>
+          <ellipse cx="46" cy="112" rx="8" ry="5" fill="#1D9E75"/>
+          <ellipse cx="64" cy="112" rx="8" ry="5" fill="#1D9E75"/>
+        </svg>
+        <span style="font-size:12px;color:#888;">Tall</span>
+      </div>
+
+      <!-- FUZZY - wide, pink, sleepy -->
+      <div class="monster-wrap" id="m3" onclick="handleClick(3)">
+        <div class="flash-bg" style="background:#FBEAF0;"></div>
+        <svg width="110" height="130" viewBox="0 0 110 130">
+          <circle cx="26" cy="72" r="12" fill="#F4C0D1"/>
+          <circle cx="84" cy="72" r="12" fill="#F4C0D1"/>
+          <circle cx="40" cy="56" r="12" fill="#F4C0D1"/>
+          <circle cx="70" cy="56" r="12" fill="#F4C0D1"/>
+          <circle cx="30" cy="88" r="10" fill="#F4C0D1"/>
+          <circle cx="80" cy="88" r="10" fill="#F4C0D1"/>
+          <ellipse cx="55" cy="80" rx="34" ry="26" fill="#ED93B1"/>
+          <ellipse cx="55" cy="66" rx="28" ry="26" fill="#F4C0D1"/>
+          <ellipse cx="44" cy="62" rx="7" ry="4" fill="white"/>
+          <ellipse cx="66" cy="62" rx="7" ry="4" fill="white"/>
+          <ellipse cx="44" cy="63" rx="5" ry="2.5" fill="#4B1528"/>
+          <ellipse cx="66" cy="63" rx="5" ry="2.5" fill="#4B1528"/>
+          <path d="M46 74 Q55 79 64 74" stroke="#99355A" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M22 84 Q12 92 16 104" stroke="#ED93B1" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path d="M88 84 Q98 72 94 60" stroke="#ED93B1" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <circle cx="94" cy="58" r="6" fill="#F4C0D1"/>
+          <ellipse cx="46" cy="107" rx="8" ry="5" fill="#ED93B1"/>
+          <ellipse cx="64" cy="107" rx="8" ry="5" fill="#ED93B1"/>
+        </svg>
+        <span style="font-size:12px;color:#888;">Fuzzy</span>
+      </div>
+    </div>
+
+    <button class="btn primary" id="next-trial-btn" style="display:none;" onclick="nextTrial()">Start next trial</button>
+    <button class="btn primary" id="done-btn" style="display:none;" onclick="showResults()">View results</button>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div class="screen" id="screen-results">
+    <h2>Session complete</h2>
+    <div class="results-grid" id="results-grid"></div>
+    <div class="trial-breakdown" id="trial-breakdown"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+      <button class="btn primary" onclick="downloadCSV()">Download full log</button>
+      <button class="btn" onclick="downloadSummaryCSV()">Download summary</button>
+    </div>
+    <button class="btn" onclick="resetApp()">New session</button>
+    <p class="version">FTMT v1.0 — follow the monster test</p>
+  </div>
+
+</div>
+
+<script>
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx;
+function boop() {
+  if (!audioCtx) audioCtx = new AudioCtx();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.frequency.setValueAtTime(560, audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.22);
+  g.gain.setValueAtTime(0.25, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.26);
+  o.start(); o.stop(audioCtx.currentTime + 0.26);
+}
+
+const MONSTER_NAMES = ['Blob','Spiky','Tall','Fuzzy'];
+const VERSION = '1.0';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwaKatcO9y6NQKJZc86D79NLZa_bnsctRymCZ7VFVCWjOdJK99vMI0YBXErbe890ICD/exec';
+let pid='', age='', isPractice=true, trialNum=0, spanLen=1;
+let sequence=[], clicks=[], clickTimes=[], seqStart=0;
+let sessionLog=[], trialSpans=[], accepting=false;
+const TOTAL_TRIALS = 3;
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function randSeq(len) {
+  const s = [];
+  for (let i = 0; i < len; i++) {
+    let n;
+    do { n = Math.floor(Math.random() * 4); }
+    while (i > 0 && n === s[i-1]);
+    s.push(n);
+  }
+  return s;
+}
+
+function setPhase(txt) { document.getElementById('phase-label').textContent = txt; }
+function setSpeech(txt) {
+  const a = document.getElementById('speech-area');
+  a.innerHTML = txt ? `<div class="speech-bubble">${txt}</div>` : '';
+}
+function updateSpanLabel() { document.getElementById('span-label').textContent = 'Span: ' + (spanLen - 1); }
+function updateTrialLabel() {
+  document.getElementById('trial-label').textContent = isPractice ? 'Practice' : `Trial ${trialNum} of ${TOTAL_TRIALS}`;
+}
+function updateDots() {
+  for (let i = 1; i <= 3; i++) {
+    const d = document.getElementById('dot-' + i);
+    d.className = 'dot';
+    if (i < trialNum) d.classList.add('done');
+    else if (i === trialNum && !isPractice) d.classList.add('active');
+  }
+}
+
+function startPractice() {
+  pid = document.getElementById('pid').value.trim() || 'unknown';
+  age = document.getElementById('age').value.trim() || 'unknown';
+  isPractice = true; trialNum = 0; spanLen = 1; sessionLog = []; trialSpans = [];
+  show('screen-game');
+  document.getElementById('next-trial-btn').style.display = 'none';
+  document.getElementById('done-btn').style.display = 'none';
+  updateDots();
+  setTimeout(() => runRound(), 400);
+}
+
+function runRound() {
+  clicks = []; clickTimes = [];
+  sequence = randSeq(spanLen);
+  updateTrialLabel(); updateSpanLabel();
+  setSpeech('');
+  setPhase('Watch carefully!');
+  setClickable(false);
+  setTimeout(() => playSequence(0), 700);
+}
+
+function activateMonster(idx, done) {
+  const wrap = document.getElementById('m' + idx);
+  wrap.classList.add('activating');
+  boop();
+  setTimeout(() => {
+    wrap.classList.remove('activating');
+    setTimeout(done, 200);
+  }, 750);
+}
+
+function playSequence(i) {
+  if (i >= sequence.length) {
+    setTimeout(() => {
+      setPhase('Your turn! Tap them in order.');
+      setClickable(true);
+      seqStart = Date.now();
+    }, 500);
+    return;
+  }
+  activateMonster(sequence[i], () => playSequence(i + 1));
+}
+
+function setClickable(yes) {
+  accepting = yes;
+  document.querySelectorAll('.monster-wrap').forEach(w => {
+    w.classList.toggle('clickable', yes);
+  });
+}
+
+function handleClick(idx) {
+  if (!accepting) return;
+  const now = Date.now();
+  const latency = clickTimes.length === 0 ? (now - seqStart) : (now - clickTimes[clickTimes.length - 1]);
+  clickTimes.push(now);
+  const pos = clicks.length;
+  clicks.push(idx);
+  const correct = (idx === sequence[pos]);
+
+  if (correct) {
+    const wrap = document.getElementById('m' + idx);
+    wrap.classList.add('correct-flash');
+    boop();
+    setTimeout(() => wrap.classList.remove('correct-flash'), 350);
+    logStep(pos, idx, sequence[pos], true, latency);
+    if (clicks.length === sequence.length) {
+      setClickable(false);
+      spanLen++;
+      updateSpanLabel();
+      setTimeout(() => runRound(), 700);
+    }
+  } else {
+    logStep(pos, idx, sequence[pos], false, latency);
+    setClickable(false);
+    document.querySelectorAll('.monster-wrap').forEach(w => w.classList.add('wrong-flash'));
+    setSpeech('Thank you for participating!');
+    setPhase('');
+    trialSpans.push(spanLen - 1);
+    setTimeout(() => {
+      document.querySelectorAll('.monster-wrap').forEach(w => w.classList.remove('wrong-flash'));
+      setSpeech('');
+      if (isPractice) {
+        isPractice = false; trialNum = 0; spanLen = 1;
+        setPhase('Practice done! Examiner: start trial 1.');
+        document.getElementById('next-trial-btn').textContent = 'Start Trial 1';
+        document.getElementById('next-trial-btn').style.display = 'inline-block';
+        updateDots();
+      } else {
+        if (trialNum >= TOTAL_TRIALS) {
+          setPhase('All trials complete.');
+          document.getElementById('done-btn').style.display = 'inline-block';
+        } else {
+          setPhase(`Trial ${trialNum} done. Examiner: start next trial.`);
+          document.getElementById('next-trial-btn').textContent = `Start Trial ${trialNum + 1}`;
+          document.getElementById('next-trial-btn').style.display = 'inline-block';
+        }
+      }
+    }, 1800);
+  }
+}
+
+function logStep(pos, clicked, expected, correct, latency) {
+  sessionLog.push({
+    version: VERSION,
+    pid, age,
+    datetime: new Date().toISOString(),
+    trial: isPractice ? 'practice' : trialNum,
+    span_length: spanLen,
+    sequence: sequence.join('|'),
+    position: pos + 1,
+    expected: MONSTER_NAMES[expected],
+    clicked: MONSTER_NAMES[clicked],
+    correct: correct ? 'yes' : 'no',
+    latency_ms: latency,
+    error_position: correct ? '' : (pos + 1)
+  });
+}
+
+function nextTrial() {
+  document.getElementById('next-trial-btn').style.display = 'none';
+  trialNum++;
+  spanLen = 1;
+  updateDots();
+  setTimeout(() => runRound(), 400);
+}
+
+function getAgeBand(ageNum) {
+  if (ageNum >= 6 && ageNum <= 7) return '6–7';
+  else if (ageNum >= 8 && ageNum <= 9) return '8–9';
+  else if (ageNum >= 10 && ageNum <= 11) return '10–11';
+  else if (ageNum >= 12 && ageNum <= 13) return '12–13';
+  else if (ageNum >= 14 && ageNum <= 15) return '14–15';
+  else if (ageNum >= 16 && ageNum <= 18) return '16–18';
+  return '—';
+}
+
+function sendToSheets(maxSpan, avgSpan, band) {
+  if (!SHEETS_URL || SHEETS_URL === 'PASTE_YOUR_WEB_APP_URL_HERE') return;
+  const summary = {
+    version: VERSION, pid, age, age_band: band,
+    datetime: new Date().toISOString(),
+    trial1_span: trialSpans[0] ?? '',
+    trial2_span: trialSpans[1] ?? '',
+    trial3_span: trialSpans[2] ?? '',
+    max_span: maxSpan, avg_span: avgSpan
+  };
+  const payload = { fullLog: sessionLog, summary };
+  fetch(SHEETS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+}
+
+function showResults() {
+  document.getElementById('done-btn').style.display = 'none';
+  const maxSpan = Math.max(...trialSpans);
+  const avgSpan = (trialSpans.reduce((a, b) => a + b, 0) / trialSpans.length).toFixed(1);
+  const band = getAgeBand(parseInt(age));
+  sendToSheets(maxSpan, avgSpan, band);
+  document.getElementById('results-grid').innerHTML = `
+    <div class="metric"><div class="metric-val">${maxSpan}</div><div class="metric-label">Max span</div></div>
+    <div class="metric"><div class="metric-val">${avgSpan}</div><div class="metric-label">Avg span</div></div>
+    <div class="metric"><div class="metric-val">${band}</div><div class="metric-label">Age band</div></div>
+  `;
+  document.getElementById('trial-breakdown').innerHTML =
+    trialSpans.map((s, i) => `Trial ${i + 1}: span ${s}`).join(' &nbsp;·&nbsp; ');
+  show('screen-results');
+}
+
+function downloadCSV() {
+  const headers = ['version','pid','age','datetime','trial','span_length','sequence','position','expected','clicked','correct','latency_ms','error_position'];
+  const rows = sessionLog.map(r => headers.map(h => `"${r[h]}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `FTMT_${pid}_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function downloadSummaryCSV() {
+  const maxSpan = Math.max(...trialSpans);
+  const avgSpan = (trialSpans.reduce((a, b) => a + b, 0) / trialSpans.length).toFixed(1);
+  const band = getAgeBand(parseInt(age));
+  const headers = ['version','pid','age','age_band','datetime','trial1_span','trial2_span','trial3_span','max_span','avg_span'];
+  const row = [
+    VERSION, pid, age, band,
+    new Date().toISOString(),
+    trialSpans[0] ?? '',
+    trialSpans[1] ?? '',
+    trialSpans[2] ?? '',
+    maxSpan, avgSpan
+  ].map(v => `"${v}"`).join(',');
+  const csv = [headers.join(','), row].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `FTMT_summary_${pid}_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function resetApp() { show('screen-entry'); }
+</script>
+</body>
+</html>
