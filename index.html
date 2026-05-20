@@ -241,7 +241,7 @@ function boop() {
 
 const MONSTER_NAMES = ['Blob','Spiky','Tall','Fuzzy'];
 const VERSION = '1.0';
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwhc5Q7ysLMYNI92xWph436YFL9wE9zk0c0rKurTebBxmzc72CK_r7y_qo0fBfIVH7l/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw1MX5zWr-jAi5vLbE2FDcSETsAIDGmz_MX9ojl0EF2PO8wwgm6iAiCHO7AxMhrdJr7/exec';
 let pid='', age='', isPractice=true, trialNum=0, spanLen=1;
 let sequence=[], clicks=[], clickTimes=[], seqStart=0;
 let sessionLog=[], trialSpans=[], accepting=false;
@@ -392,7 +392,9 @@ function logStep(pos, clicked, expected, correct, latency) {
     sequence: sequence.join('|'),
     position: pos + 1,
     expected: MONSTER_NAMES[expected],
+    expected_code: expected,
     clicked: MONSTER_NAMES[clicked],
+    clicked_code: clicked,
     correct: correct ? 'yes' : 'no',
     latency_ms: latency,
     error_position: correct ? '' : (pos + 1)
